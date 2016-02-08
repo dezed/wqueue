@@ -26,6 +26,7 @@
 
 #include <pthread.h>
 #include <list>
+#include <iostream>
 
 using namespace std;
 
@@ -34,19 +35,32 @@ template <typename T> class wqueue
     list<T>          m_queue;
     pthread_mutex_t  m_mutex;
     pthread_cond_t   m_condv; 
+    
+    pthread_cond_t   m_cond_all_done; 
+
+    int _unfinished_tasks;
+
 
   public:
     wqueue() {
         pthread_mutex_init(&m_mutex, NULL);
         pthread_cond_init(&m_condv, NULL);
+
+        pthread_cond_init(&m_cond_all_done, NULL);
+	_unfinished_tasks=0;
+
     }
     ~wqueue() {
         pthread_mutex_destroy(&m_mutex);
         pthread_cond_destroy(&m_condv);
+
+        pthread_cond_destroy(&m_cond_all_done);
     }
     void add(T item) {
         pthread_mutex_lock(&m_mutex);
         m_queue.push_back(item);
+	++_unfinished_tasks;
+
         pthread_cond_signal(&m_condv);
         pthread_mutex_unlock(&m_mutex);
     }
@@ -66,6 +80,35 @@ template <typename T> class wqueue
         pthread_mutex_unlock(&m_mutex);
         return size;
     }
+    
+    void task_done(void)
+    {
+      pthread_mutex_lock(&m_mutex);
+      
+      int unfinished = _unfinished_tasks - 1;
+
+      if (unfinished <= 0) {
+	if (unfinished < 0) {
+	  std::cout << "ValueError task_done() called too many times.";
+	}
+	pthread_cond_broadcast(&m_cond_all_done);
+      }
+
+      _unfinished_tasks = unfinished;
+ 
+      pthread_mutex_unlock(&m_mutex );
+    }
+
+    void join()
+    {
+      pthread_mutex_lock(&m_mutex);
+      
+      while (_unfinished_tasks > 0) {
+	pthread_cond_wait(&m_cond_all_done, &m_mutex );
+      }
+      pthread_mutex_unlock(&m_mutex);
+    }
+    
 };
 
 #endif
