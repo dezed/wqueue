@@ -59,6 +59,7 @@ class ConsumerThread : public Thread
             printf("thread %lu, loop %d - item: message - %s, number - %d\n", 
                   (long unsigned int)self(), i, item->getMessage(), 
                    item->getNumber());
+            this->m_queue.task_done()
             delete item;
         }
         return NULL;
@@ -94,7 +95,8 @@ int main(int argc, char** argv)
     }
  
     // Wait for the queue to be empty
-    while (queue.size() < 0);
+    queue.join()
+    
     printf("done\n");
     exit(0);
 }
